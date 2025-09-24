@@ -1,83 +1,55 @@
 // [TCA2] core/i18n.js
-(function() {
+(function(){
   'use strict';
   const root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   const TCA2 = root.TCA2 = root.TCA2 || {};
-  const log = (TCA2.log || console);
+  const log = TCA2.log || console;
 
-  if (typeof i18next === 'undefined') {
+  if (typeof i18next === 'undefined' || typeof i18nextXHRBackend === 'undefined') {
     log.warn('[core/i18n.js] i18next was not found (@require missing?)');
     return;
   }
 
-  // Custom i18next backend that loads via GM_xmlhttpRequest (no CORS/X-Requested-With)
-  function GMBackend(options = {}) {
-    this.init = function(services, backendOptions, i18nextOptions) {
-      this.services = services;
-      this.options = Object.assign({ loadPath: '' }, backendOptions || {});
-    };
-    this.read = function(language, namespace, callback) {
-      try {
-        const url = this.options.loadPath
-          .replace('{{lng}}', language)
-          .replace('{{ns}}', namespace);
-        TCA2.http.get(url, { json: true, anonymous: false })
-          .then(data => callback(null, data))
-          .catch(err => callback(err, false));
-      } catch (e) {
-        callback(e, false);
-      }
-    };
-  }
-  GMBackend.type = 'backend';
+  // Use XHR backend with a custom ajax that goes via GM_xmlhttpRequest to bypass CORS
+  try { i18next.use(i18nextXHRBackend); } catch(e){}
+  try { i18next.use(i18nextBrowserLanguageDetector); } catch(e){}
 
-  function normalizeLang(lng) {
-    if (!lng) return 'en';
-    lng = String(lng);
-    // prefer language-country if provided, else language only
-    if (lng.indexOf('-') > -1) lng = lng.replace('-', '_');
-    if (/^[a-z]{2}(_[A-Z]{2})$/.test(lng)) return lng; // ex: en_US, nb_NO
-    if (/^[a-z]{2}$/.test(lng)) return lng;
-    // last fallback
-    return 'en';
-  }
-
-  function detectLanguage() {
-    try {
-      // 1) stored value (set elsewhere)
-      const stored = (typeof GM_getValue !== 'undefined') ? GM_getValue('cachetur.language') : null;
-      if (stored) return normalizeLang(stored);
-
-      // 2) browser
-      const nav = navigator.language || (navigator.languages && navigator.languages[0]);
-      if (nav) return normalizeLang(nav);
-
-    } catch (e) {
-      // ignore
+  function gmAjax(url, options, callback, data){
+    if (!TCA2.gm || !TCA2.gm.xhr) {
+      // Fallback to normal XHR if GM is unavailable
+      const xhr = new XMLHttpRequest();
+      xhr.open(data ? 'POST' : 'GET', url, true);
+      xhr.onreadystatechange = function(){
+        if (xhr.readyState === 4){
+          callback(xhr.responseText, xhr);
+        }
+      };
+      xhr.send(data);
+      return;
     }
-    return 'en';
+    TCA2.gm.xhr({
+      method: data ? 'POST' : 'GET',
+      url: url,
+      headers: options && options.headers ? options.headers : {'Accept':'application/json'},
+      data: data,
+      onload: function(resp){ callback(resp.responseText, { status: resp.status, getResponseHeader: (n)=>resp.responseHeaders }); },
+      onerror: function(){ callback('', { status: 0 }); }
+    });
   }
 
-  const userLng = detectLanguage();
-
-  i18next
-    .use(GMBackend)
-    .init({
-      lng: userLng,
-      fallbackLng: 'en',
-      debug: false,
-      ns: ['common'],
-      defaultNS: 'common',
-      interpolation: { escapeValue: false },
-      backend: {
-        loadPath: 'https://cachetur.no/monkey/language/{{ns}}.{{lng}}.json'
-      }
-    }, (err) => {
-      if (err) {
-        log.warn('[core/i18n.js] i18next init error:', err && err.message ? err.message : err);
-      }
-      TCA2.t = i18next.t.bind(i18next);
-    });
-
-  log.info('[core/i18n.js] Loaded');
+  i18next.init({
+    debug: false,
+    fallbackLng: 'en',
+    ns: ['common'],
+    defaultNS: 'common',
+    backend: {
+      loadPath: 'https://cachetur.no/monkey/language/{{ns}}.{{lng}}.json',
+      crossDomain: true,
+      ajax: gmAjax
+    },
+    detection: { order: ['querystring','cookie','localStorage','navigator'] }
+  }, function(err){
+    if (err) log.warn('[core/i18n.js] i18next init error:', err);
+    TCA2.t = function(key, opts){ try { return i18next.t(key, opts); } catch(e){ return key; } };
+  });
 })();

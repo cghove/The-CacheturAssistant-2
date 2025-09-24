@@ -1,56 +1,62 @@
 // [TCA2] features/header-gc.js
-(function() {
+(function(){
   'use strict';
   const root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   const TCA2 = root.TCA2 = root.TCA2 || {};
-  const log = (TCA2.log || console);
-  log.info('[features/header-gc.js] Loaded');
+  const log = TCA2.log || console;
 
-  function buildHeader() {
-    const $ = root.jQuery || root.$;
-    if (!$) return;
+  function insertHeader(){
+    // Find the GC header user-menu UL
+    const container = document.querySelector('ul.user-menu');
+    if (!container) return false;
 
-    const userMenu = document.querySelector('#gc-header-root ul.user-menu');
-    if (!userMenu) return;
-
-    if (document.getElementById('cachetur-header')) return; // avoid duplicate
+    if (document.getElementById('cachetur-header')) return true; // already inserted
 
     const li = document.createElement('li');
     li.id = 'cachetur-header';
     li.className = 'ct-gc-classic';
-    li.innerHTML = ''
-      + '<span id="cachetur-header-text">'
-      + '  <img src="https://cachetur.net/img/logo_top.png" alt="cachetur.no"> '
-      + '  <a href="" id="cachetur-activate">Activate the Cachetur Assistant</a>'
-      + '</span>';
+    const span = document.createElement('span');
+    span.id = 'cachetur-header-text';
 
-    // Insert before message center if possible, else at start
-    const messageCenter = userMenu.querySelector('.message-center')?.closest('li');
-    if (messageCenter) {
-      userMenu.insertBefore(li, messageCenter);
-    } else {
-      userMenu.insertBefore(li, userMenu.firstChild);
-    }
+    const img = document.createElement('img');
+    img.src = 'https://cachetur.net/img/logo_top.png';
+    img.alt = 'cachetur.no';
+    img.style.verticalAlign = 'middle';
+    img.style.height = '20px';
+    img.style.marginRight = '6px';
 
-    $('#cachetur-activate').on('click', function(e) {
+    const a = document.createElement('a');
+    a.href = '#';
+    a.id = 'cachetur-activate';
+    a.textContent = 'Activate the Cachetur Assistant';
+    a.style.color = 'white';
+    a.style.textDecoration = 'underline';
+
+    span.appendChild(img);
+    span.appendChild(a);
+    li.appendChild(span);
+
+    // Insert as first item in user-menu
+    container.insertBefore(li, container.firstChild);
+
+    a.addEventListener('click', function(e){
       e.preventDefault();
-      if (TCA2.bus && TCA2.bus.emit) {
-        TCA2.bus.emit('tca2:activate');
-      }
+      try {
+        if (TCA2.bus && TCA2.bus.emit) TCA2.bus.emit('tca2:activate');
+      } catch(err){ log.error(err); }
     });
 
+    return true;
+  }
+
+  function ready(){
+    insertHeader();
     log.info('[features/header-gc.js] Ready');
   }
 
-  function maybeBuild() {
-    const isGC = /(^|\.)geocaching\.com$/i.test(location.host);
-    if (!isGC) return;
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', buildHeader);
-    } else {
-      buildHeader();
-    }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    ready();
+  } else {
+    document.addEventListener('DOMContentLoaded', ready);
   }
-
-  maybeBuild();
 })();

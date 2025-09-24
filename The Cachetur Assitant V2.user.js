@@ -1,36 +1,25 @@
 // ==UserScript==
-// @name            cgThe Cachetur Assitant V2
+// @name            The Cachetur Assitant V2
 // @namespace       https://cachetur.no/
 // @version         0.2.0
 // @description     Bootloader that loads TCA2 modules live from GitHub
 // @icon            https://cachetur.net/img/logo_top.png
-// @match           https://www.geocaching.com/play/map*
-// @match           http://www.geocaching.com/play/map*
-// @match           https://www.geocaching.com/map/*
-// @match           http://www.geocaching.com/map/*
-// @match           https://www.geocaching.com/live/play/map*
-// @match           http://www.geocaching.com/live/play/map*
-// @match           https://www.geocaching.com/geocache/*
-// @match           http://www.geocaching.com/geocache/*
-// @match           https://www.geocaching.com/seek/cache_details.aspx*
-// @match           https://www.geocaching.com/plan/*
-// @match           https://www.geocaching.com/play/geotours*
-// @match           http://project-gc.com/*
-// @match           https://project-gc.com/*
-// @match           http*://cachetur.no/bobilplasser
+// @match           *://www.geocaching.com/*
+// @match           *://geocaching.com/*
+// @match           *://project-gc.com/*
+// @match           *://www.project-gc.com/*
+// @match           *://cachetur.no/*
+// @match           *://www.cachetur.no/*
+// @connect         raw.githubusercontent.com
+// @connect         github.com
+// @connect         cachetur.no
+// @connect         www.cachetur.no
 // @connect         overpass-api.de
 // @connect         overpass.kumi.systems
 // @connect         overpass.openstreetmap.fr
 // @connect         overpass.osm.ch
 // @connect         nominatim.openstreetmap.org
 // @connect         photon.komoot.io
-// @connect         www.cachetur.no
-// @connect         www.cachetur.net
-// @connect         cachetur.no
-// @connect         cachetur.net
-// @connect         raw.githubusercontent.com
-// @connect         github.com
-// @connect         self
 // @grant           GM_xmlhttpRequest
 // @grant           GM_info
 // @grant           GM_setValue
@@ -39,125 +28,123 @@
 // @grant           GM_registerMenuCommand
 // @grant           GM_addStyle
 // @grant           unsafeWindow
+// @run-at          document-end
 // @require         https://code.jquery.com/jquery-latest.js
 // @require         https://unpkg.com/i18next@22.4.9/i18next.min.js
-// @run-at          document-end
-// @copyright       2017+, cachetur.no
+// @require         https://unpkg.com/i18next-xhr-backend@3.2.2/i18nextXHRBackend.js
+// @require         https://unpkg.com/i18next-browser-languagedetector@7.0.1/i18nextBrowserLanguageDetector.js
+// @require         https://gist.github.com/raw/2625891/waitForKeyElements.js
 // ==/UserScript==
 
 (function() {
   'use strict';
 
-  // Repository config
+  // Repo to load from:
   var REPO = { owner: "cghove", name: "The-CacheturAssistant-2", branch: "main" };
-  var RAW_BASE = "https://raw.githubusercontent.com/" + REPO.owner + "/" + REPO.name + "/" + REPO.branch + "/";
 
-  // Logger
-  function log() { console.log.apply(console, ["[TCA2] Bootloader:"].concat([].slice.call(arguments))); }
-  function warn() { console.warn.apply(console, ["[TCA2] Bootloader:"].concat([].slice.call(arguments))); }
-  function error() { console.error.apply(console, ["[TCA2] Bootloader:"].concat([].slice.call(arguments))); }
+  const root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+  const TCA2 = root.TCA2 = root.TCA2 || {};
+  const log = TCA2.log = {
+    info: (...a)=>console.log('[TCA2]', ...a),
+    warn: (...a)=>console.warn('[TCA2]', ...a),
+    error: (...a)=>console.error('[TCA2]', ...a),
+  };
 
-  // Minimal page detection used by the bootloader (modules do their own too)
-  function detectPage() {
-    var href = location.href;
-    var host = location.host;
-    var isGC = /(^|\.)geocaching\.com$/i.test(host);
-    var isPGC = /(^|\.)project-gc\.com$/i.test(host);
-    var isCachetur = /(^|\.)cachetur\.(no|net)$/i.test(host);
-    var isGCMap = isGC && /(\/map(\/|#|\?|$)|\/play\/map)/i.test(href);
-    var isGCListing = isGC && /(\/geocache\/|\/seek\/cache_details\.aspx)/i.test(href);
-    return { isGCMap: isGCMap, isGCListing: isGCListing, isPGC: isPGC, isCachetur: isCachetur, href: href };
+  // Expose jQuery globally (several legacy modules expect it)
+  try {
+    root.$ = root.jQuery = root.jQuery || jQuery || $;
+  } catch(e) {
+    // Tampermonkey @require should have provided it, but keep running even if not
+    log.warn('jQuery not available; some legacy modules may fail.');
   }
-  var PAGE = detectPage();
 
-  // GM GET helper
-  function gmGet(url, opts) {
-    return new Promise(function(resolve, reject) {
+  function detectPage() {
+    const href = location.href;
+    const host = location.hostname;
+    const isGC = /geocaching\.com$/i.test(host) || /(^|\.)geocaching\.com$/i.test(host);
+    const isPGC = /project-gc\.com$/i.test(host);
+    const isCachetur = /cachetur\.(no|net)$/i.test(host);
+    const isGCMap = isGC && /\/(play\/map|map\/?#)/i.test(href);
+    const isGCListing = isGC && /\/geocache\//i.test(href);
+    return { href, isGC, isPGC, isCachetur, isGCMap, isGCListing, site: isGC ? 'gc' : (isPGC ? 'pgc' : (isCachetur ? 'cachetur' : 'other')) };
+  }
+
+  function shouldLoad(when, page) {
+    if (!when) return true;
+    if (when.isGCMap && !page.isGCMap) return false;
+    if (when.isGCListing && !page.isGCListing) return false;
+    if (when.site && when.site !== page.site) return false;
+    return true;
+  }
+
+  function rawUrl(path) {
+    return 'https://raw.githubusercontent.com/' + REPO.owner + '/' + REPO.name + '/' + REPO.branch + '/' + path;
+  }
+
+  function gmFetchText(url) {
+    return new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
         method: 'GET',
-        url: url,
-        responseType: (opts && opts.responseType) || 'text',
-        anonymous: (opts && typeof opts.anonymous !== 'undefined') ? opts.anonymous : false,
+        url,
+        headers: { 'Accept': 'text/plain' },
         onload: function(resp) {
-          if (resp.status >= 200 && resp.status < 300) {
-            resolve(resp.responseText);
-          } else {
-            reject(new Error("HTTP " + resp.status + " for " + url));
-          }
+          if (resp.status >= 200 && resp.status < 300) resolve(resp.responseText);
+          else reject(new Error('HTTP ' + resp.status + ' for ' + url));
         },
-        onerror: function() { reject(new Error("Request failed for " + url)); },
-        ontimeout: function() { reject(new Error("Request timeout for " + url)); }
+        onerror: function(err) { reject(err); }
       });
     });
   }
 
-  function buildURL(path) {
-    path = String(path).replace(/^\/+/, '');
-    return RAW_BASE + path;
+  function gmFetchJSON(url) {
+    return gmFetchText(url).then(txt => {
+      try { return JSON.parse(txt); } catch(e) { throw new Error('Invalid JSON from ' + url); }
+    });
   }
 
-  function gmEval(src, urlForDebug) {
-    // Evaluate module code in the userscript sandbox
-    // Attach a sourceURL for easier debugging
+  function gmEval(code, name) {
+    // Evaluate module in the userscript sandbox and add a sourceURL for debugging
     try {
-      (0, eval)(src + "\n//# sourceURL=" + urlForDebug);
-    } catch (e) {
+      // eslint-disable-next-line no-eval
+      eval(code + '\n//# sourceURL=' + name);
+    } catch(e) {
+      log.error('Module error in', name, e);
       throw e;
     }
   }
 
-  function shouldLoad(when) {
-    if (!when) return true;
-    // only simple equality checks expected (e.g. { isGCMap: true })
-    var ok = true;
-    Object.keys(when).forEach(function(k) {
-      if (PAGE.hasOwnProperty(k)) {
-        ok = ok && (String(PAGE[k]) === String(when[k]));
-      }
-    });
-    return ok;
-  }
-
-  async function loadModule(entry) {
-    log("Loading", { path: entry.path, when: entry.when });
-    var url = buildURL(entry.path);
-    var code = await gmGet(url);
-    gmEval(code, url);
-  }
-
   async function run() {
-    log("starting", {repo: REPO, url: location.href});
-    log("Detecting page…", PAGE);
+    const page = detectPage();
+    log.info('Bootloader: starting', {repo: REPO, url: page.href});
+    log.info('Bootloader: Detecting page…', page);
+
+    // Make page flags also available for legacy code
+    root._ctPage = (page.isGCMap ? 'gc_map_new'
+                   : page.isGCListing ? 'gc_geocache'
+                   : page.isPGC ? 'pgc'
+                   : page.isCachetur ? 'cachetur'
+                   : 'other');
 
     // Load manifest
-    var manifestUrl = buildURL("manifest.json");
-    var manifestTxt = await gmGet(manifestUrl);
-    var manifest;
-    try {
-      manifest = JSON.parse(manifestTxt);
-    } catch (e) {
-      error("Failed to parse manifest.json", e);
-      return;
-    }
-    log("Loaded manifest.json", manifest);
+    const manifestUrl = rawUrl('manifest.json');
+    const manifest = await gmFetchJSON(manifestUrl);
+    log.info('Bootloader: Loaded manifest.json', manifest);
 
-    // Load modules in order, filtering by `when`
-    for (var i = 0; i < manifest.modules.length; i++) {
-      var m = manifest.modules[i];
-      if (shouldLoad(m.when)) {
-        try {
-          await loadModule(m);
-        } catch (e) {
-          error("Module failed", m.path, e);
-        }
-      }
+    // Sequentially load modules in manifest order
+    for (const mod of manifest.modules) {
+      if (!mod || !mod.path) continue;
+      if (!shouldLoad(mod.when, page)) continue;
+      log.info('Bootloader: Loading', {path: mod.path, when: mod.when});
+      const url = rawUrl(mod.path);
+      const code = await gmFetchText(url);
+      gmEval(code, mod.path);
     }
 
-    log("Done");
+    log.info('Bootloader: Done');
   }
 
-  run().catch(function(e) {
-    error("Boot failed:", e);
+  // Kick off
+  run().catch(err => {
+    log.error('Bootloader failed', err);
   });
-
 })();

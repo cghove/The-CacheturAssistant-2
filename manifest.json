@@ -11,6 +11,9 @@
       "path": "core/i18n.js"
     },
     {
+      "path": "core/auth.js"
+    },
+    {
       "path": "core/map-hook.js",
       "when": {
         "isGCMap": true
@@ -20,7 +23,10 @@
       "path": "app/ct-start.js"
     },
     {
-      "path": "features/header-gc.js"
+      "path": "features/header-gc.js",
+      "when": {
+        "site": "gc"
+      }
     },
     {
       "path": "features/dt-info.js",
