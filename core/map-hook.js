@@ -1,22 +1,22 @@
-/* core/map-hook.js */
+// [TCA2] core/map-hook.js
 (function() {
-  const log = (...a) => console.log("[TCA2] [core/map-hook.js]", ...a);
-  const $ = window.jQuery || window.$;
-  const page = (window.TCA2 && window.TCA2.page) || {};
-
-  if (!page.isGCMap) { log("Skipped (not on GC map)"); return; }
+  'use strict';
+  const root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+  const TCA2 = root.TCA2 = root.TCA2 || {};
+  const log = (TCA2.log || console);
+  log.info('[core/map-hook.js] Loaded');
 
   function ready() {
-    log("Ready");
-    // Placeholder: hook into Leaflet if present
-    const L = window.L;
-    if (L && typeof L.map === "function") {
-      log("Leaflet detected");
+    if (root.L && root.L.Map) {
+      log.info('[core/map-hook.js] Ready');
+      log.info('[core/map-hook.js] Leaflet detected');
+    } else {
+      log.info('[core/map-hook.js] Ready');
     }
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", ready);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ready);
   } else {
     ready();
   }

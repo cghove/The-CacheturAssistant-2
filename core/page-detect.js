@@ -1,17 +1,38 @@
-/* core/page-detect.js */
+// [TCA2] core/page-detect.js
 (function() {
-  const log = (...a) => console.log("[TCA2] [core/page-detect.js]", ...a);
-  const $ = window.jQuery || window.$;
-  const href = location.href;
+  'use strict';
+  const root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+  const TCA2 = root.TCA2 = root.TCA2 || {};
+  const log = (TCA2.log || console);
 
-  const isGCMap     = /geocaching\.com\/(map|play\/map|live\/play\/map)/i.test(href);
-  const isGCListing = /geocaching\.com\/(geocache|seek\/cache_details\.aspx)/i.test(href);
-  const isPGC       = /project-gc\.com/i.test(href);
-  const isCachetur  = /cachetur\.(no|net)/i.test(href);
+  function detect() {
+    const href = location.href;
+    const host = location.host;
 
-  window.TCA2 = window.TCA2 || {};
-  window.TCA2.page = { href, isGCMap, isGCListing, isPGC, isCachetur };
+    const isGC = /(^|\.)geocaching\.com$/i.test(host);
+    const isPGC = /(^|\.)project-gc\.com$/i.test(host);
+    const isCachetur = /(^|\.)cachetur\.(no|net)$/i.test(host);
 
-  log("Loaded");
-  $(function(){ log("Ready"); });
+    const isGCMap = isGC && /(\/map(\/|#|\?|$)|\/play\/map)/i.test(href);
+    const isGCListing = isGC && /(\/geocache\/|\/seek\/cache_details\.aspx)/i.test(href);
+
+    return {
+      isGC,
+      isGCMap,
+      isGCListing,
+      isPGC,
+      isCachetur,
+      href
+    };
+  }
+
+  TCA2.page = detect();
+  (TCA2.log || console).info('[core/page-detect.js] Loaded');
+
+  const ready = () => (TCA2.log || console).info('[core/page-detect.js] Ready');
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ready);
+  } else {
+    ready();
+  }
 })();

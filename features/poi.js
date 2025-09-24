@@ -1,12 +1,18 @@
-/* features/poi.js */
+// [TCA2] features/poi.js
 (function() {
-  const log = (...a) => console.log("[TCA2] [features/poi.js]", ...a);
-  const $ = window.jQuery || window.$;
-  const page = (window.TCA2 && window.TCA2.page) || {};
-  if (!page.isGCMap) { log("Skipped (not map)"); return; }
+  'use strict';
+  const root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+  const TCA2 = root.TCA2 = root.TCA2 || {};
+  const log = (TCA2.log || console);
+  log.info('[features/poi.js] Loaded');
 
-  $(function(){
-    log("Ready");
-    // Placeholder for POI layer handling
-  });
+  function ready() {
+    log.info('[features/poi.js] Ready');
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ready);
+  } else {
+    ready();
+  }
 })();

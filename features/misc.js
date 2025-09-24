@@ -1,15 +1,18 @@
-/* features/misc.js */
+// [TCA2] features/misc.js
 (function() {
-  const log = (...a) => console.log("[TCA2] [features/misc.js]", ...a);
-  const $ = window.jQuery || window.$;
+  'use strict';
+  const root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+  const TCA2 = root.TCA2 = root.TCA2 || {};
+  const log = (TCA2.log || console);
+  log.info('[features/misc.js] Loaded');
 
-  // Ensure legacy modules can expect window.jQuery
-  if (typeof window.jQuery === "undefined" && typeof window.$ !== "undefined") {
-    window.jQuery = window.$;
+  function ready() {
+    log.info('[features/misc.js] Ready');
   }
 
-  $(function(){
-    log("Ready");
-    // Misc small helpers can live here
-  });
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ready);
+  } else {
+    ready();
+  }
 })();

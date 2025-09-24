@@ -13,39 +13,25 @@
     {
       "path": "core/map-hook.js",
       "when": {
-        "path": [
-          "geocaching\\.com\\/map",
-          "geocaching\\.com\\/play\\/map",
-          "geocaching\\.com\\/live\\/play\\/map"
-        ]
+        "isGCMap": true
       }
     },
     {
       "path": "app/ct-start.js"
     },
     {
-      "path": "features/header-gc.js",
-      "when": {
-        "path": [
-          "geocaching\\.com"
-        ]
-      }
+      "path": "features/header-gc.js"
     },
     {
       "path": "features/dt-info.js",
       "when": {
-        "path": [
-          "geocaching\\.com"
-        ]
+        "isGCMap": true
       }
     },
     {
       "path": "features/poi.js",
       "when": {
-        "path": [
-          "geocaching\\.com\\/map",
-          "geocaching\\.com\\/play\\/map"
-        ]
+        "isGCMap": true
       }
     },
     {

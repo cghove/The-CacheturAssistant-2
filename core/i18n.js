@@ -1,79 +1,83 @@
-/* core/i18n.js */
+// [TCA2] core/i18n.js
 (function() {
-  const log = (...a) => console.log("[TCA2] [core/i18n.js]", ...a);
-  const warn = (...a) => console.warn("[TCA2] [core/i18n.js]", ...a);
-  const $ = window.jQuery || window.$;
+  'use strict';
+  const root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+  const TCA2 = root.TCA2 = root.TCA2 || {};
+  const log = (TCA2.log || console);
 
-  const I18NEXT_URL = "https://unpkg.com/i18next@22.4.9/i18next.min.js";
-  const XHR_URL     = "https://unpkg.com/i18next-xhr-backend@3.2.2/i18nextXHRBackend.js";
-  const DETECT_URL  = "https://unpkg.com/i18next-browser-languagedetector@7.0.1/i18nextBrowserLanguageDetector.js";
+  if (typeof i18next === 'undefined') {
+    log.warn('[core/i18n.js] i18next was not found (@require missing?)');
+    return;
+  }
 
-  function inject(src) {
-    return new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = src;
-      s.onload = resolve;
-      s.onerror = () => reject(new Error("Failed to load " + src));
-      document.head.appendChild(s);
+  // Custom i18next backend that loads via GM_xmlhttpRequest (no CORS/X-Requested-With)
+  function GMBackend(options = {}) {
+    this.init = function(services, backendOptions, i18nextOptions) {
+      this.services = services;
+      this.options = Object.assign({ loadPath: '' }, backendOptions || {});
+    };
+    this.read = function(language, namespace, callback) {
+      try {
+        const url = this.options.loadPath
+          .replace('{{lng}}', language)
+          .replace('{{ns}}', namespace);
+        TCA2.http.get(url, { json: true, anonymous: false })
+          .then(data => callback(null, data))
+          .catch(err => callback(err, false));
+      } catch (e) {
+        callback(e, false);
+      }
+    };
+  }
+  GMBackend.type = 'backend';
+
+  function normalizeLang(lng) {
+    if (!lng) return 'en';
+    lng = String(lng);
+    // prefer language-country if provided, else language only
+    if (lng.indexOf('-') > -1) lng = lng.replace('-', '_');
+    if (/^[a-z]{2}(_[A-Z]{2})$/.test(lng)) return lng; // ex: en_US, nb_NO
+    if (/^[a-z]{2}$/.test(lng)) return lng;
+    // last fallback
+    return 'en';
+  }
+
+  function detectLanguage() {
+    try {
+      // 1) stored value (set elsewhere)
+      const stored = (typeof GM_getValue !== 'undefined') ? GM_getValue('cachetur.language') : null;
+      if (stored) return normalizeLang(stored);
+
+      // 2) browser
+      const nav = navigator.language || (navigator.languages && navigator.languages[0]);
+      if (nav) return normalizeLang(nav);
+
+    } catch (e) {
+      // ignore
+    }
+    return 'en';
+  }
+
+  const userLng = detectLanguage();
+
+  i18next
+    .use(GMBackend)
+    .init({
+      lng: userLng,
+      fallbackLng: 'en',
+      debug: false,
+      ns: ['common'],
+      defaultNS: 'common',
+      interpolation: { escapeValue: false },
+      backend: {
+        loadPath: 'https://cachetur.no/monkey/language/{{ns}}.{{lng}}.json'
+      }
+    }, (err) => {
+      if (err) {
+        log.warn('[core/i18n.js] i18next init error:', err && err.message ? err.message : err);
+      }
+      TCA2.t = i18next.t.bind(i18next);
     });
-  }
 
-  function getCookie(name, cookieStr) {
-    const v = ("; " + cookieStr).split("; " + name + "=");
-    if (v.length === 2) return v.pop().split(";").shift();
-  }
-
-  // Try Cachetur API cookie first (user setting), else GM, else browser
-  function resolveLanguage() {
-    try {
-      // If cachetur.no cookie is present in document.cookie when on cachetur pages:
-      const cookieLang = getCookie("cachetur_lang", document.cookie || "");
-      if (cookieLang) return cookieLang.replace("_", "-");
-    } catch(e) {}
-
-    try {
-      const gmLang = (typeof GM_getValue === "function" && GM_getValue("tca2_lang")) || null;
-      if (gmLang) return gmLang;
-    } catch(e) {}
-
-    const nav = (navigator.languages && navigator.languages[0]) || navigator.language || "en";
-    return (nav || "en").replace("_", "-");
-  }
-
-  async function init() {
-    await inject(I18NEXT_URL);
-    await inject(XHR_URL);
-    await inject(DETECT_URL);
-
-    const lng = resolveLanguage();
-    window.TCA2 = window.TCA2 || {};
-    window.TCA2.language = lng;
-
-    // Configure i18next to load from cachetur.no
-    // Path format: https://cachetur.no/monkey/language/{{ns}}.{{lng}}.json
-    // Namespaces: ["common"]
-    const loadPath = "https://cachetur.no/monkey/language/{{ns}}.{{lng}}.json";
-
-    // eslint-disable-next-line no-undef
-    i18next
-      // eslint-disable-next-line no-undef
-      .use(i18nextXHRBackend)
-      // eslint-disable-next-line no-undef
-      .use(i18nextBrowserLanguageDetector)
-      .init({
-        fallbackLng: "en",
-        lng,
-        ns: ["common"],
-        defaultNS: "common",
-        backend: { loadPath },
-        detection: { order: ["querystring", "cookie", "navigator"], caches: [] },
-        returnEmptyString: false,
-      }, function(err) {
-        if (err) warn("i18next init error:", err);
-        else log("Ready (lng=" + i18next.language + ")");
-        $(function(){ $(document).trigger("tca2:i18n-ready", [i18next]); });
-      });
-  }
-
-  init().catch(e => warn("init failed", e));
+  log.info('[core/i18n.js] Loaded');
 })();

@@ -1,140 +1,163 @@
 // ==UserScript==
-// @name            The Cachetur Assistant V2 – Bootloader
+// @name            The Cachetur Assitant V2
 // @namespace       https://cachetur.no/
 // @version         0.2.0
-// @description     Bootloader that loads TCA2 modules live from GitHub (jQuery-first)
+// @description     Bootloader that loads TCA2 modules live from GitHub
 // @icon            https://cachetur.net/img/logo_top.png
-// @match           *://www.geocaching.com/*
-// @match           *://geocaching.com/*
-// @match           *://project-gc.com/*
-// @match           *://www.project-gc.com/*
-// @match           *://cachetur.no/*
-// @match           *://www.cachetur.no/*
-// @match           *://cachetur.net/*
+// @match           https://www.geocaching.com/play/map*
+// @match           http://www.geocaching.com/play/map*
+// @match           https://www.geocaching.com/map/*
+// @match           http://www.geocaching.com/map/*
+// @match           https://www.geocaching.com/live/play/map*
+// @match           http://www.geocaching.com/live/play/map*
+// @match           https://www.geocaching.com/geocache/*
+// @match           http://www.geocaching.com/geocache/*
+// @match           https://www.geocaching.com/seek/cache_details.aspx*
+// @match           https://www.geocaching.com/plan/*
+// @match           https://www.geocaching.com/play/geotours*
+// @match           http://project-gc.com/*
+// @match           https://project-gc.com/*
+// @match           http*://cachetur.no/bobilplasser
+// @connect         overpass-api.de
+// @connect         overpass.kumi.systems
+// @connect         overpass.openstreetmap.fr
+// @connect         overpass.osm.ch
+// @connect         nominatim.openstreetmap.org
+// @connect         photon.komoot.io
+// @connect         www.cachetur.no
+// @connect         www.cachetur.net
+// @connect         cachetur.no
+// @connect         cachetur.net
 // @connect         raw.githubusercontent.com
 // @connect         github.com
-// @connect         cachetur.no
-// @connect         www.cachetur.no
-// @connect         cachetur.net
-// @connect         www.cachetur.net
+// @connect         self
 // @grant           GM_xmlhttpRequest
-// @grant           GM_getValue
-// @grant           GM_setValue
-// @grant           GM_addStyle
-// @grant           GM_registerMenuCommand
 // @grant           GM_info
+// @grant           GM_setValue
+// @grant           GM_getValue
+// @grant           GM_openInTab
+// @grant           GM_registerMenuCommand
+// @grant           GM_addStyle
 // @grant           unsafeWindow
-// @run-at          document-start
-// @require         https://code.jquery.com/jquery-3.7.1.min.js
+// @require         https://code.jquery.com/jquery-latest.js
+// @require         https://unpkg.com/i18next@22.4.9/i18next.min.js
+// @run-at          document-end
+// @copyright       2017+, cachetur.no
 // ==/UserScript==
 
 (function() {
-  "use strict";
+  'use strict';
 
-  const REPO = { owner: "cghove", name: "The-CacheturAssistant-2", branch: "main" };
-  const RAW = (path) => `https://raw.githubusercontent.com/${REPO.owner}/${REPO.name}/${REPO.branch}/${path}`;
+  // Repository config
+  var REPO = { owner: "cghove", name: "The-CacheturAssistant-2", branch: "main" };
+  var RAW_BASE = "https://raw.githubusercontent.com/" + REPO.owner + "/" + REPO.name + "/" + REPO.branch + "/";
 
-  // Promote jQuery globally ASAP (for legacy modules)
-  try {
-    if (typeof window.jQuery === "undefined" && typeof window.$ === "undefined" && typeof jQuery !== "undefined") {
-      window.jQuery = jQuery;
-      window.$ = jQuery;
-    }
-  } catch(e) {}
+  // Logger
+  function log() { console.log.apply(console, ["[TCA2] Bootloader:"].concat([].slice.call(arguments))); }
+  function warn() { console.warn.apply(console, ["[TCA2] Bootloader:"].concat([].slice.call(arguments))); }
+  function error() { console.error.apply(console, ["[TCA2] Bootloader:"].concat([].slice.call(arguments))); }
 
-  const log = (...a) => console.log("[TCA2] Bootloader:", ...a);
-  const warn = (...a) => console.warn("[TCA2] Bootloader:", ...a);
-  const err  = (...a) => console.error("[TCA2] Bootloader:", ...a);
+  // Minimal page detection used by the bootloader (modules do their own too)
+  function detectPage() {
+    var href = location.href;
+    var host = location.host;
+    var isGC = /(^|\.)geocaching\.com$/i.test(host);
+    var isPGC = /(^|\.)project-gc\.com$/i.test(host);
+    var isCachetur = /(^|\.)cachetur\.(no|net)$/i.test(host);
+    var isGCMap = isGC && /(\/map(\/|#|\?|$)|\/play\/map)/i.test(href);
+    var isGCListing = isGC && /(\/geocache\/|\/seek\/cache_details\.aspx)/i.test(href);
+    return { isGCMap: isGCMap, isGCListing: isGCListing, isPGC: isPGC, isCachetur: isCachetur, href: href };
+  }
+  var PAGE = detectPage();
 
-  // Tiny ajax helper via GM_xmlhttpRequest
-  function gmGet(url, {responseType="text"}={}) {
-    return new Promise((resolve, reject) => {
+  // GM GET helper
+  function gmGet(url, opts) {
+    return new Promise(function(resolve, reject) {
       GM_xmlhttpRequest({
-        method: "GET",
-        url,
-        responseType,
-        onload: (res) => {
-          if (res.status >= 200 && res.status < 300) resolve(res.responseText || res.response);
-          else reject(new Error(`HTTP ${res.status} for ${url}`));
+        method: 'GET',
+        url: url,
+        responseType: (opts && opts.responseType) || 'text',
+        anonymous: (opts && typeof opts.anonymous !== 'undefined') ? opts.anonymous : false,
+        onload: function(resp) {
+          if (resp.status >= 200 && resp.status < 300) {
+            resolve(resp.responseText);
+          } else {
+            reject(new Error("HTTP " + resp.status + " for " + url));
+          }
         },
-        onerror: (e) => reject(new Error(`Network error for ${url}`)),
+        onerror: function() { reject(new Error("Request failed for " + url)); },
+        ontimeout: function() { reject(new Error("Request timeout for " + url)); }
       });
     });
   }
 
-  // Minimal page detector; expanded logic lives in core/page-detect.js
-  function detectPage(url = location.href) {
-    return {
-      isGCMap: /geocaching\.com\/(map|play\/map|live\/play\/map)/i.test(url),
-      isGCListing: /geocaching\.com\/(geocache|seek\/cache_details\.aspx)/i.test(url),
-      isPGC: /project-gc\.com/i.test(url),
-      isCachetur: /cachetur\.(no|net)/i.test(url),
-      href: url
-    };
+  function buildURL(path) {
+    path = String(path).replace(/^\/+/, '');
+    return RAW_BASE + path;
   }
 
-  async function loadManifest() {
-    const raw = await gmGet(RAW("manifest.json"));
-    return JSON.parse(raw);
-  }
-
-  async function loadModule(path) {
-    const url = RAW(path);
-    const code = await gmGet(url);
-    // Provide module context/globals commonly expected by legacy code
-    const context = {
-      REPO, RAW, GM_getValue, GM_setValue, GM_addStyle, GM_registerMenuCommand,
-      $, jQuery: window.jQuery || window.$, unsafeWindow
-    };
-    // eslint-disable-next-line no-new-func
-    const wrapped = new Function("module", "exports", ...Object.keys(context),
-      `/* TCA2 module: ${path} */\n` +
-      `"use strict";\n` +
-      `${code}\n` +
-      `return (typeof module !== "undefined" && module.exports) ? module.exports : (typeof exports !== "undefined" ? exports : undefined);`
-    );
-    const module = { exports: {} };
-    return wrapped(module, module.exports, ...Object.values(context));
-  }
-
-  async function run() {
-    const page = detectPage();
-    log("starting", { repo: REPO, url: page.href });
-    log("Detecting page…", page);
+  function gmEval(src, urlForDebug) {
+    // Evaluate module code in the userscript sandbox
+    // Attach a sourceURL for easier debugging
     try {
-      const manifest = await loadManifest();
-      log("Loaded manifest.json", manifest);
-
-      // Make a simple event bus & env visible early so modules can subscribe
-      const bus = $({});
-      const env = {
-        REPO,
-        RAW,
-        page,
-        bus,
-        get: GM_getValue,
-        set: GM_setValue,
-        $: window.jQuery || window.$
-      };
-      unsafeWindow.TCA2 = env;
-      window.TCA2 = env;
-
-      for (const mod of manifest.modules) {
-        if (mod.when && mod.when.path && mod.when.path.length) {
-          const match = mod.when.path.some(rx => new RegExp(rx, "i").test(location.href));
-          if (!match) continue;
-        }
-        log("Loading", mod);
-        await loadModule(mod.path);
-      }
-
-      bus.trigger("tca2:ready", [env]);
-      log("Done");
+      (0, eval)(src + "\n//# sourceURL=" + urlForDebug);
     } catch (e) {
-      err("Boot failed:", e);
+      throw e;
     }
   }
 
-  // Run as soon as possible
-  run();
+  function shouldLoad(when) {
+    if (!when) return true;
+    // only simple equality checks expected (e.g. { isGCMap: true })
+    var ok = true;
+    Object.keys(when).forEach(function(k) {
+      if (PAGE.hasOwnProperty(k)) {
+        ok = ok && (String(PAGE[k]) === String(when[k]));
+      }
+    });
+    return ok;
+  }
+
+  async function loadModule(entry) {
+    log("Loading", { path: entry.path, when: entry.when });
+    var url = buildURL(entry.path);
+    var code = await gmGet(url);
+    gmEval(code, url);
+  }
+
+  async function run() {
+    log("starting", {repo: REPO, url: location.href});
+    log("Detecting page…", PAGE);
+
+    // Load manifest
+    var manifestUrl = buildURL("manifest.json");
+    var manifestTxt = await gmGet(manifestUrl);
+    var manifest;
+    try {
+      manifest = JSON.parse(manifestTxt);
+    } catch (e) {
+      error("Failed to parse manifest.json", e);
+      return;
+    }
+    log("Loaded manifest.json", manifest);
+
+    // Load modules in order, filtering by `when`
+    for (var i = 0; i < manifest.modules.length; i++) {
+      var m = manifest.modules[i];
+      if (shouldLoad(m.when)) {
+        try {
+          await loadModule(m);
+        } catch (e) {
+          error("Module failed", m.path, e);
+        }
+      }
+    }
+
+    log("Done");
+  }
+
+  run().catch(function(e) {
+    error("Boot failed:", e);
+  });
+
 })();
