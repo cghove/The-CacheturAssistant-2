@@ -21,7 +21,7 @@
 (function() {
   "use strict";
   var BOOTLOADER_VERSION = "0.2.0";
-  var REPO = { owner: "XXXX", name: "XXXX", branch: "main" };
+  var REPO = { owner: "cghove", name: "The-CacheturAssistant-2", branch: "main" };
   function RAW(path){ return "https://raw.githubusercontent.com/" + REPO.owner + "/" + REPO.name + "/" + REPO.branch + "/" + path; }
   var MANIFEST_URL = RAW("manifest.json");
   var CACHE_KEY = "tca2_cache";
