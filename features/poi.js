@@ -1,8 +1,8 @@
-// [TCA2] features/poi.js
+// [features/poi.js]
 (function(){
   'use strict';
-  const root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
-  const TCA2 = root.TCA2 = root.TCA2 || {};
-  const log = TCA2.log || console;
+  var root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+  var TCA2 = root.TCA2 = root.TCA2 || {};
+  var log = (TCA2.log || console);
   log.info('[features/poi.js] Ready');
 })();

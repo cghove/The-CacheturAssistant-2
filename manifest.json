@@ -16,7 +16,7 @@
     {
       "path": "core/map-hook.js",
       "when": {
-        "isGCMap": true
+        "gcMap": true
       }
     },
     {
@@ -25,19 +25,19 @@
     {
       "path": "features/header-gc.js",
       "when": {
-        "site": "gc"
+        "gcMap": true
       }
     },
     {
       "path": "features/dt-info.js",
       "when": {
-        "isGCMap": true
+        "gcMap": true
       }
     },
     {
       "path": "features/poi.js",
       "when": {
-        "isGCMap": true
+        "gcMap": true
       }
     },
     {
