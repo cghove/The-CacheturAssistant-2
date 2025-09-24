@@ -1,0 +1,69 @@
+{
+  "minBootloader": "0.2.0",
+  "modules": [
+    {
+      "path": "core/env.js",
+      "when": {
+        "always": true
+      }
+    },
+    {
+      "path": "core/page-detect.js",
+      "when": {
+        "always": true
+      }
+    },
+    {
+      "path": "core/i18n.js",
+      "when": {
+        "always": true
+      }
+    },
+    {
+      "path": "core/map-hook.js",
+      "when": {
+        "pages": [
+          "gc_map_new",
+          "gc_map",
+          "pgc_map",
+          "pgc_map2"
+        ]
+      }
+    },
+    {
+      "path": "app/ct-start.js",
+      "when": {
+        "always": true
+      }
+    },
+    {
+      "path": "features/header-gc.js",
+      "when": {
+        "host": "geocaching\\.com$"
+      }
+    },
+    {
+      "path": "features/dt-info.js",
+      "when": {
+        "always": true
+      }
+    },
+    {
+      "path": "features/poi.js",
+      "when": {
+        "pages": [
+          "gc_map_new",
+          "gc_map",
+          "pgc_map",
+          "pgc_map2"
+        ]
+      }
+    },
+    {
+      "path": "features/misc.js",
+      "when": {
+        "always": true
+      }
+    }
+  ]
+}
