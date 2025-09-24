@@ -1,72 +1,73 @@
-// [core/i18n.js]
-(function(){
+// [TCA2] core/i18n.js
+(function () {
   'use strict';
-  var root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
-  var TCA2 = root.TCA2 = root.TCA2 || {};
-  var log = (TCA2.log || console);
+  const root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+  const TCA2 = root.TCA2 = root.TCA2 || {};
+  const log = (TCA2.log || console);
 
-  function setFallback(){
-    TCA2.i18n = { t: function(k, opts){ return k; }, changeLanguage: function(){}, language: 'en' };
-    TCA2.t = TCA2.i18n.t;
-  }
+  // Ensure the global $ from jQuery is available for legacy modules
+  if (!root.$ && root.jQuery) root.$ = root.jQuery;
 
-  if (typeof root.i18next === 'undefined' || !root.i18next) {
-    log.warn('[core/i18n.js] i18next was not found (@require missing?)');
-    setFallback();
+  if (typeof root.i18next === 'undefined') {
+    log.log('[core/i18n.js] i18next was not found (@require missing?)');
+    // Soft no-op: provide a tiny shim so calls don’t crash
+    TCA2.t = (k) => k;
     return;
   }
 
-  var lng = (navigator.language || 'en').split('-')[0];
-  var i18n = root.i18next;
-  var Backend = root.i18nextXHRBackend || root.i18nextHttpBackend; // support either name
-  var Detector = root.i18nextBrowserLanguageDetector;
-
-  // Custom AJAX to avoid preflight header issues, using GM_xmlhttpRequest
-  function gmAjax(url, opts, callback) {
+  // Use GM_xmlhttpRequest to bypass site CORS & X-Requested-With header
+  function gmAjax(url, options, callback, data) {
     try {
       GM_xmlhttpRequest({
-        method: 'GET',
-        url: url,
-        headers: { 'Accept': 'application/json' },
-        onload: function(res){
-          if (res.status >= 200 && res.status < 300) {
-            callback(res.responseText, res);
-          } else {
-            callback('', res);
-          }
-        },
-        onerror: function(){
-          callback('', { status: 0 });
-        }
+        method: (options && options.type) || (data ? 'POST' : 'GET'),
+        url,
+        data: data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null,
+        headers: Object.assign(
+          { 'Accept': 'application/json' },
+          (options && options.headers) || {}
+        ),
+        responseType: 'text',
+        withCredentials: true,    // << important so Cachetur cookies are sent
+        onload: (res) => callback(res.responseText, res),
+        onerror: (err) => callback('', err),
+        ontimeout: () => callback('', { status: 0, statusText: 'timeout' }),
       });
     } catch (e) {
-      callback('', { status: 0 });
+      callback('', { status: 0, statusText: e && e.message || 'gmAjax error' });
     }
   }
 
-  var useChain = i18n;
-  if (Backend) useChain = useChain.use(Backend);
-  if (Detector) useChain = useChain.use(Detector);
+  const lngDetector = root.i18nextBrowserLanguageDetector;
+  const xhrBackend = root.i18nextXHRBackend;
 
-  useChain.init({
-    debug: false,
-    lng: lng,
-    fallbackLng: 'en',
-    ns: ['common'],
-    defaultNS: 'common',
-    backend: {
-      loadPath: 'https://cachetur.no/monkey/language/{{ns}}.{{lng}}.json',
-      ajax: gmAjax
-    },
-    detection: {
-      order: ['cookie', 'localStorage', 'navigator'],
-      caches: []
-    }
-  }, function(err){
-    if (err) log.warn('[core/i18n.js] init error:', err);
-    TCA2.i18n = i18n;
-    TCA2.t = i18n.t.bind(i18n);
-    log.info('[core/i18n.js] Ready');
-    (TCA2.bus && TCA2.bus.emit) && TCA2.bus.emit('i18n:ready');
-  });
+  root.i18next
+    .use(xhrBackend)
+    .use(lngDetector)
+    .init({
+      fallbackLng: 'en',
+      ns: ['common'],
+      defaultNS: 'common',
+      backend: {
+        loadPath: 'https://cachetur.no/monkey/language/{{ns}}.{{lng}}.json',
+        ajax: gmAjax, // << override to avoid CORS/preflight header
+      },
+      detection: {
+        order: ['cookie', 'localStorage', 'navigator'],
+        caches: [], // don’t write new cookies
+      },
+      interpolation: { escapeValue: false },
+      returnEmptyString: false,
+    }, function (err) {
+      if (err) {
+        log.log('[core/i18n.js] init error:', err);
+      } else {
+        log.log('[core/i18n.js] ready');
+      }
+    });
+
+  // Public translator (modules use TCA2.t)
+  TCA2.t = function (key, opts) {
+    try { return root.i18next.t(key, opts); }
+    catch { return key; }
+  };
 })();
