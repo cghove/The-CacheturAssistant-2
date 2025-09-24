@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name            The Cachetur Assitant V2
+// @name            cgThe Cachetur Assitant V2
 // @namespace       https://cachetur.no/
 // @version         0.2.0
 // @description     Bootloader that loads TCA2 modules live from GitHub
