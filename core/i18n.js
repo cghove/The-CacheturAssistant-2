@@ -1,73 +1,89 @@
 // [TCA2] core/i18n.js
-(function () {
+(function(){
   'use strict';
   const root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   const TCA2 = root.TCA2 = root.TCA2 || {};
-  const log = (TCA2.log || console);
+  const log = TCA2.log || console;
 
-  // Ensure the global $ from jQuery is available for legacy modules
-  if (!root.$ && root.jQuery) root.$ = root.jQuery;
-
-  if (typeof root.i18next === 'undefined') {
-    log.log('[core/i18n.js] i18next was not found (@require missing?)');
-    // Soft no-op: provide a tiny shim so calls don’t crash
-    TCA2.t = (k) => k;
+  // If i18next isn't included via @require, don't block anything.
+  if (typeof root.i18next === 'undefined'){
+    log.info("[core/i18n.js] i18next was not found (@require missing?)");
     return;
   }
 
-  // Use GM_xmlhttpRequest to bypass site CORS & X-Requested-With header
-  function gmAjax(url, options, callback, data) {
-    try {
-      GM_xmlhttpRequest({
-        method: (options && options.type) || (data ? 'POST' : 'GET'),
-        url,
-        data: data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null,
-        headers: Object.assign(
-          { 'Accept': 'application/json' },
-          (options && options.headers) || {}
-        ),
-        responseType: 'text',
-        withCredentials: true,    // << important so Cachetur cookies are sent
-        onload: (res) => callback(res.responseText, res),
-        onerror: (err) => callback('', err),
-        ontimeout: () => callback('', { status: 0, statusText: 'timeout' }),
+  // lightweight backend that uses GM.xmlHttpRequest to avoid CORS problems
+  const gmXHR = (typeof GM !== 'undefined' && GM.xmlHttpRequest) || (typeof GM_xmlhttpRequest !== 'undefined' && GM_xmlhttpRequest);
+  const GMBackend = function(options){ this.init = function(){}; };
+  GMBackend.type = 'backend';
+  GMBackend.prototype.init = function(services, backendOptions, i18nextOptions){ this.options = backendOptions || {}; };
+  GMBackend.prototype.read = function(language, namespace, callback){
+    if (!gmXHR){ callback(new Error("GM xhr missing")); return; }
+    const url = `https://cachetur.no/monkey/language/${namespace}.${language}.json`;
+    gmXHR({
+      method: "GET",
+      url,
+      responseType: "text",
+      anonymous: false,
+      onload: (res)=>{
+        try{
+          const json = JSON.parse(res.responseText || "{}");
+          callback(null, json);
+        }catch(e){
+          callback(e);
+        }
+      },
+      onerror: ()=>callback(new Error("xhr error")),
+      ontimeout: ()=>callback(new Error("timeout"))
+    });
+  };
+
+  function loadTranslations(){
+    // get preferred language from Cachetur API, fallback to browser
+    const detector = (navigator.language || navigator.userLanguage || "en").replace("-", "_");
+    let selectedLanguage = detector;
+
+    if (TCA2.api && TCA2.api.call){
+      TCA2.api.call("user_get_current", "", function(response){
+        if (response && response.username && response.language){
+          selectedLanguage = response.language;
+          log.info("[core/i18n.js] Using user language:", selectedLanguage);
+        } else {
+          log.info("[core/i18n.js] Using browser language:", selectedLanguage);
+        }
+        initI18n(selectedLanguage);
       });
-    } catch (e) {
-      callback('', { status: 0, statusText: e && e.message || 'gmAjax error' });
+    } else {
+      initI18n(selectedLanguage);
     }
   }
 
-  const lngDetector = root.i18nextBrowserLanguageDetector;
-  const xhrBackend = root.i18nextXHRBackend;
+  function initI18n(lng){
+    const white = ['nb_NO','en','de_DE','sv_SE','en_US','da_DK','nl_NL','fr_FR','cs_CZ','fi_FI','es_ES'];
+    try{
+      root.i18next
+        .use(GMBackend)
+        .use(root.i18nextBrowserLanguageDetector || { type: 'languageDetector', detect: ()=>lng })
+        .init({
+          whitelist: white,
+          preload: white,
+          fallbackLng: white,
+          lng: lng,
+          ns: ['cachetur'],
+          defaultNS: 'cachetur',
+          backend: {},
+        }, function(err, t){
+          if (err){
+            log.warn("[core/i18n.js] i18next init error:", err);
+            try{ root.i18next.changeLanguage('en_US'); }catch(_){}
+          } else {
+            log.info("[core/i18n.js] i18n ready:", root.i18next.language);
+          }
+          // i18n is async, but we don't gate startup on it
+        });
+    }catch(e){
+      log.warn("[core/i18n.js] i18n init threw:", e);
+    }
+  }
 
-  root.i18next
-    .use(xhrBackend)
-    .use(lngDetector)
-    .init({
-      fallbackLng: 'en',
-      ns: ['common'],
-      defaultNS: 'common',
-      backend: {
-        loadPath: 'https://cachetur.no/monkey/language/{{ns}}.{{lng}}.json',
-        ajax: gmAjax, // << override to avoid CORS/preflight header
-      },
-      detection: {
-        order: ['cookie', 'localStorage', 'navigator'],
-        caches: [], // don’t write new cookies
-      },
-      interpolation: { escapeValue: false },
-      returnEmptyString: false,
-    }, function (err) {
-      if (err) {
-        log.log('[core/i18n.js] init error:', err);
-      } else {
-        log.log('[core/i18n.js] ready');
-      }
-    });
-
-  // Public translator (modules use TCA2.t)
-  TCA2.t = function (key, opts) {
-    try { return root.i18next.t(key, opts); }
-    catch { return key; }
-  };
+  loadTranslations();
 })();

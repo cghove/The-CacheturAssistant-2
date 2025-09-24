@@ -1,19 +1,12 @@
-// [core/map-hook.js]
+// [TCA2] core/map-hook.js
 (function(){
   'use strict';
-  var root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
-  var TCA2 = root.TCA2 = root.TCA2 || {};
-  var log = (TCA2.log || console);
-  log.info('[core/map-hook.js] Loaded');
+  const root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+  const TCA2 = root.TCA2 = root.TCA2 || {};
 
-  function leafletPresent(){
-    return !!(root.L && root.L.map);
+  TCA2.log.info("[core/map-hook.js] Loaded");
+  if (root.L && root.L.map){
+    TCA2.log.info("[core/map-hook.js] Leaflet detected");
   }
-
-  if (leafletPresent()) {
-    log.info('[core/map-hook.js] Ready');
-    log.info('[core/map-hook.js] Leaflet detected');
-  } else {
-    log.info('[core/map-hook.js] Ready');
-  }
+  TCA2.log.info("[core/map-hook.js] Ready");
 })();

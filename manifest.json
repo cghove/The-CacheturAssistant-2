@@ -8,6 +8,9 @@
       "path": "core/page-detect.js"
     },
     {
+      "path": "core/api.js"
+    },
+    {
       "path": "core/i18n.js"
     },
     {
@@ -25,13 +28,13 @@
     {
       "path": "features/header-gc.js",
       "when": {
-        "gcMap": true
+        "gc": true
       }
     },
     {
       "path": "features/dt-info.js",
       "when": {
-        "gcMap": true
+        "gc": true
       }
     },
     {
