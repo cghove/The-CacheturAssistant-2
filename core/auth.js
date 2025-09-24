@@ -1,66 +1,78 @@
-// [core/auth.js]
-(function(){
+// [TCA2] core/auth.js
+(function () {
   'use strict';
-  var root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
-  var TCA2 = root.TCA2 = root.TCA2 || {};
-  var log = (TCA2.log || console);
+  const root = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+  const TCA2 = root.TCA2 = root.TCA2 || {};
+  const log = (TCA2.log || console);
 
-  // Simple API caller that tries multiple paths
-  var BASES = [
-    'https://cachetur.no',
-    'https://www.cachetur.no',
-    'https://cachetur.net',
-    'https://www.cachetur.net'
+  // endpoints observed in older TCA
+  const ENDPOINTS = [
+    // Clean endpoints
+    'https://cachetur.no/monkey/user_get_current',
+    'https://www.cachetur.no/monkey/user_get_current',
+    'https://cachetur.net/monkey/user_get_current',
+    'https://www.cachetur.net/monkey/user_get_current',
+
+    // Legacy "api?method=" style
+    'https://cachetur.no/monkey/api?method=user_get_current',
+    'https://www.cachetur.no/monkey/api?method=user_get_current',
+    'https://cachetur.net/monkey/api?method=user_get_current',
+    'https://www.cachetur.net/monkey/api?method=user_get_current',
+
+    // Legacy "api.php?method=" style (belt & suspenders)
+    'https://cachetur.no/monkey/api.php?method=user_get_current',
+    'https://www.cachetur.no/monkey/api.php?method=user_get_current',
+    'https://cachetur.net/monkey/api.php?method=user_get_current',
+    'https://www.cachetur.net/monkey/api.php?method=user_get_current',
   ];
 
-  function tryEndpoints(paths){
-    // returns a function(method, payload) promise that tries paths
-    return function(method, payload){
-      var endpoints = [];
-      for (var i=0;i<BASES.length;i++){
-        for (var j=0;j<paths.length;j++){
-          endpoints.push(BASES[i] + paths[j] + method);
-        }
-      }
-      function attempt(ix){
-        if (ix >= endpoints.length) return Promise.reject(new Error('No endpoint succeeded'));
-        var url = endpoints[ix];
-        return TCA2.gm.xhr({ method: 'GET', url: url }).then(function(res){
-          if (res.status>=200 && res.status<300 && res.responseText) {
-            try { return JSON.parse(res.responseText); } catch(e){}
+  function gmFetchJson(url) {
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: 'GET',
+        url,
+        headers: { 'Accept': 'application/json' },
+        responseType: 'text',
+        withCredentials: true, // << carry Cachetur login cookie
+        onload: (res) => {
+          if (res.status >= 200 && res.status < 300) {
+            try {
+              const json = JSON.parse(res.responseText);
+              resolve(json);
+            } catch (e) {
+              reject(new Error('Bad JSON from ' + url));
+            }
+          } else {
+            reject(new Error('HTTP ' + res.status + ' for ' + url));
           }
-          return attempt(ix+1);
-        }).catch(function(){ return attempt(ix+1); });
-      }
-      return attempt(0);
-    };
+        },
+        onerror: () => reject(new Error('Network error for ' + url)),
+        ontimeout: () => reject(new Error('Timeout for ' + url)),
+      });
+    });
   }
 
-  var callUser = tryEndpoints(['/monkey/', '/api/']);
-
-  TCA2.api = {
-    call: function(method, payload){ return callUser(method, payload); }
-  };
-
-  TCA2.auth = {
-    checkLogin: function(){
-      return TCA2.api.call('user_get_current', '').then(function(data){
-        // Expect shape: { username, language }
-        var user = {
-          username: data && (data.username || data.user || data.name) || '',
-          language: data && (data.language || data.lang || 'en') || 'en'
-        };
-        TCA2.user = user;
-        if (TCA2.i18n && TCA2.i18n.changeLanguage) {
-          TCA2.i18n.changeLanguage(user.language);
+  async function checkLogin() {
+    let lastErr;
+    for (const url of ENDPOINTS) {
+      try {
+        const r = await gmFetchJson(url);
+        // Accept shapes {username, language} or nested {data:{username,language}}
+        const data = (r && r.data) ? r.data : r;
+        if (data && (data.username || data.user || data.name)) {
+          return {
+            username: data.username || data.user || data.name || '',
+            language: data.language || data.lang || 'en',
+          };
         }
-        (TCA2.bus && TCA2.bus.emit) && TCA2.bus.emit(user.username ? 'auth:ok' : 'auth:none', user);
-        return user;
-      }).catch(function(err){
-        log.warn('[core/auth.js] checkLogin failed', err);
-        (TCA2.bus && TCA2.bus.emit) && TCA2.bus.emit('auth:none', { username: '', language: 'en' });
-        return { username: '', language: 'en' };
-      });
+        // If the server returns {ok:false} / {error:...}, treat as failure
+        lastErr = new Error('Unexpected payload from ' + url);
+      } catch (e) {
+        lastErr = e;
+      }
     }
-  };
+    throw lastErr || new Error('No endpoint succeeded');
+  }
+
+  TCA2.auth = { checkLogin };
 })();
