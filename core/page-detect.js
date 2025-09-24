@@ -1,46 +1,17 @@
-// [TCA2] core/page-detect.js
-// This module was split from the original monolithic userscript. All logs are in English.
+/* core/page-detect.js */
 (function() {
-  try {
-    console.log("[TCA2] [core/page-detect.js] Loaded");
+  const log = (...a) => console.log("[TCA2] [core/page-detect.js]", ...a);
+  const $ = window.jQuery || window.$;
+  const href = location.href;
 
+  const isGCMap     = /geocaching\.com\/(map|play\/map|live\/play\/map)/i.test(href);
+  const isGCListing = /geocaching\.com\/(geocache|seek\/cache_details\.aspx)/i.test(href);
+  const isPGC       = /project-gc\.com/i.test(href);
+  const isCachetur  = /cachetur\.(no|net)/i.test(href);
 
-    function ctDetectPage()
-    {
-        const host = (window.location.hostname || "").toLowerCase();
-        const path = (window.location.pathname || "").toLowerCase();
-        const search = (window.location.search || "").toLowerCase();
+  window.TCA2 = window.TCA2 || {};
+  window.TCA2.page = { href, isGCMap, isGCListing, isPGC, isCachetur };
 
-        // Geocaching.com (with/without www)
-        if (host === "geocaching.com" || host === "www.geocaching.com")
-        {
-            if (path.includes("/seek/") || path.includes("/geocache/")) return "gc_geocache";
-            if (path.includes("/plan/lists") || path.includes("/plan/")) return "gc_bmlist";
-            if (path === "/map" || path.includes("/map/")) return "gc_map";
-            if (path.includes("/live/play/map") || path.includes("/play/map")) return "gc_map_new";
-            if (path.includes("/play/geotours")) return "gc_gctour";
-        }
-
-        // cachetur.no (all subdomains)
-        if (host.endsWith("cachetur.no"))
-        {
-            if (/^\/bobilplasser\/?/.test(path)) return "bobil";
-            if (/^\/fellestur\/?/.test(path)) return "fellestur";
-        }
-
-        // Project-GC (with/without www) – case-insensitive
-        if (host === "project-gc.com" || host === "www.project-gc.com")
-        {
-            if (path.includes("/user/virtualgps") && !search.includes("map=")) return "pgc_vgps";
-            if (path.includes("/livemap/") || path.includes("/tools/")) return "pgc_map";
-            if (path.includes("/maps/")) return "pgc_map2";
-
-        }
-
-        return "unknown";
-    }
-    console.log("[TCA2] [core/page-detect.js] Ready");
-  } catch (e) {
-    console.error("[TCA2] [core/page-detect.js] Error during module execution", e);
-  }
+  log("Loaded");
+  $(function(){ log("Ready"); });
 })();

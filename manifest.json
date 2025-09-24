@@ -2,68 +2,54 @@
   "minBootloader": "0.2.0",
   "modules": [
     {
-      "path": "core/env.js",
-      "when": {
-        "always": true
-      }
+      "path": "core/env.js"
     },
     {
-      "path": "core/page-detect.js",
-      "when": {
-        "always": true
-      }
+      "path": "core/page-detect.js"
     },
     {
-      "path": "core/i18n.js",
-      "when": {
-        "always": true
-      }
+      "path": "core/i18n.js"
     },
     {
       "path": "core/map-hook.js",
       "when": {
-        "pages": [
-          "gc_map_new",
-          "gc_map",
-          "pgc_map",
-          "pgc_map2"
+        "path": [
+          "geocaching\\.com\\/map",
+          "geocaching\\.com\\/play\\/map",
+          "geocaching\\.com\\/live\\/play\\/map"
         ]
       }
     },
     {
-      "path": "app/ct-start.js",
-      "when": {
-        "always": true
-      }
+      "path": "app/ct-start.js"
     },
     {
       "path": "features/header-gc.js",
       "when": {
-        "host": "geocaching\\.com$"
+        "path": [
+          "geocaching\\.com"
+        ]
       }
     },
     {
       "path": "features/dt-info.js",
       "when": {
-        "always": true
+        "path": [
+          "geocaching\\.com"
+        ]
       }
     },
     {
       "path": "features/poi.js",
       "when": {
-        "pages": [
-          "gc_map_new",
-          "gc_map",
-          "pgc_map",
-          "pgc_map2"
+        "path": [
+          "geocaching\\.com\\/map",
+          "geocaching\\.com\\/play\\/map"
         ]
       }
     },
     {
-      "path": "features/misc.js",
-      "when": {
-        "always": true
-      }
+      "path": "features/misc.js"
     }
   ]
 }
