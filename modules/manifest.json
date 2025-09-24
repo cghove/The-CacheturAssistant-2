@@ -1,0 +1,50 @@
+{
+  "minBootloader": "0.2.0",
+  "modules": [
+    {
+      "path": "core/env.js"
+    },
+    {
+      "path": "core/page-detect.js"
+    },
+    {
+      "path": "core/api.js"
+    },
+    {
+      "path": "core/i18n.js"
+    },
+    {
+      "path": "core/auth.js"
+    },
+    {
+      "path": "core/map-hook.js",
+      "when": {
+        "isGCMap": true
+      }
+    },
+    {
+      "path": "app/ct-start.js"
+    },
+    {
+      "path": "features/header-gc.js",
+      "when": {
+        "isGCMap": true
+      }
+    },
+    {
+      "path": "features/dt-info.js",
+      "when": {
+        "isGCMap": true
+      }
+    },
+    {
+      "path": "features/poi.js",
+      "when": {
+        "isGCMap": true
+      }
+    },
+    {
+      "path": "features/misc.js"
+    }
+  ]
+}
